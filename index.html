@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invoice Builder</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: form column on the left, live A4 paper on the right. Stacks on narrow screens. */
+:root{
+  --bg:#f2f4ee;
+  --panel:#ffffff;
+  --fg:#18201a;
+  --muted:#5b685e;
+  --line:#d8dfd3;
+  --accent:#3d7a2c;
+  --accent-fg:#ffffff;
+  --accent-soft:#e3ecd9;
+  --danger:#b3261e;
+  --font-ui:"Instrument Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111611;--panel:#1a211b;--fg:#e8eee6;--muted:#9aa89c;--line:#2e3a2f;
+    --accent:#8cc26f;--accent-fg:#10200a;--accent-soft:#26331f;--danger:#f2837c;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111611;--panel:#1a211b;--fg:#e8eee6;--muted:#9aa89c;--line:#2e3a2f;
+  --accent:#8cc26f;--accent-fg:#10200a;--accent-soft:#26331f;--danger:#f2837c;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-ui);font-size:14px;line-height:1.45}
+.app{
+  max-width:1280px;margin:0 auto;
+  padding-block:20px 40px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+}
+.topbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 20px;margin-bottom:20px}
+.topbar h1{margin:0;font-size:22px;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+.topbar p{margin:2px 0 0;color:var(--muted);font-size:13px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+button,.btn{
+  font:inherit;font-weight:600;font-size:13px;cursor:pointer;
+  border:1px solid var(--line);background:var(--panel);color:var(--fg);
+  padding:8px 12px;border-radius:6px;
+}
+button:hover,.btn:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+button.quiet{border-color:transparent;background:transparent;color:var(--muted);padding:6px 8px}
+button.quiet:hover{color:var(--danger);border-color:transparent}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.layout{display:grid;grid-template-columns:minmax(0,440px) minmax(0,1fr);gap:24px;align-items:start}
+@media (max-width:960px){.layout{grid-template-columns:minmax(0,1fr)}}
+
+/* editor */
+.editor{display:flex;flex-direction:column;gap:14px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.card h2{margin:0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media (max-width:420px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field>span{font-size:12px;font-weight:600;color:var(--muted)}
+input[type=text],input[type=date],input[type=number],select,textarea{
+  font:inherit;width:100%;min-width:0;
+  background:var(--bg);color:var(--fg);
+  border:1px solid var(--line);border-radius:6px;padding:8px 10px;
+}
+textarea{resize:vertical;min-height:60px}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+.upload{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.upload input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.upload .status{font-size:12px;color:var(--muted)}
+.upload .thumb{height:36px;max-width:120px;object-fit:contain;border:1px solid var(--line);border-radius:4px;background:#fff;padding:2px}
+.note{margin:0;font-size:12px;color:var(--muted)}
+.list{display:flex;flex-direction:column;gap:8px}
+.listhead,.lrow{display:grid;gap:6px;align-items:center}
+.items .listhead,.items .lrow{grid-template-columns:minmax(0,1fr) 60px 92px 30px}
+.taxes .listhead,.taxes .lrow{grid-template-columns:minmax(0,1fr) 92px 30px}
+.listhead{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.lrow button{padding:4px 0;width:30px;height:34px;color:var(--muted)}
+.lrow button:hover{color:var(--danger)}
+.lrow input{font-variant-numeric:tabular-nums}
+@media (max-width:520px){
+  .items .listhead{display:none}
+  .items .lrow{grid-template-columns:minmax(0,1fr) 70px 30px;grid-template-areas:"d d x" "q p x"}
+  .items .lrow .d{grid-area:d}.items .lrow .q{grid-area:q}.items .lrow .p{grid-area:p}.items .lrow button{grid-area:x}
+}
+.addrow{align-self:flex-start}
+.switch{display:flex;align-items:center;gap:10px;font-weight:600;cursor:pointer}
+.switch input{width:18px;height:18px;accent-color:var(--accent);margin:0}
+.taxbox{display:flex;flex-direction:column;gap:12px}
+.taxbox[hidden]{display:none}
+
+/* preview */
+.stage{min-width:0;width:100%;max-width:820px;margin-inline:auto}
+.stage-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.stage-head h2{margin:0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.stage-head span{font-size:12px;color:var(--muted)}
+.paper{
+  container-type:inline-size;
+  background:#fff;color:#111;
+  font-family:Helvetica,Arial,"Liberation Sans",sans-serif;
+  box-shadow:0 1px 3px rgba(0,0,0,.18),0 8px 28px rgba(0,0,0,.12);
+  -webkit-print-color-adjust:exact;print-color-adjust:exact;
+}
+.sheet{min-height:141.42cqw;padding:9.5cqw 9.6cqw 4.2cqw;display:flex;flex-direction:column}
+.p-head,.p-parties{display:grid;grid-template-columns:56.5% minmax(0,1fr)}
+.p-logo{display:flex;align-items:flex-start;padding-left:1.8cqw;padding-top:.4cqw}
+.p-logo img{max-width:26cqw;max-height:8cqw;object-fit:contain;object-position:left top;display:block}
+.p-logo .ph{
+  display:flex;align-items:center;justify-content:center;text-align:center;
+  width:26cqw;height:5.5cqw;border:max(1px,.13cqw) dashed #9aa79a;color:#6b786c;
+  font-size:1.25cqw;cursor:pointer;
+}
+.p-meta h2{margin:0 0 1.2cqw;font-size:2.35cqw;font-weight:700;line-height:1.2;color:#0f1a12}
+.p-meta dl{margin:0;display:flex;flex-direction:column;gap:.5cqw}
+.p-meta dl div{display:flex;justify-content:space-between;gap:2cqw;font-size:1.5cqw;line-height:2cqw;color:#555}
+.p-meta dt,.p-meta dd{margin:0}
+.p-meta dd{font-variant-numeric:tabular-nums;text-align:right}
+.p-parties{margin-top:6.5cqw}
+.p-parties h3{margin:0 0 1cqw;font-size:1.3cqw;font-weight:700;letter-spacing:.02em;color:#111}
+.p-parties p{margin:0;font-size:1.37cqw;line-height:2.08cqw;color:#222;overflow-wrap:anywhere;padding-right:3cqw}
+.p-table{margin-top:3.4cqw;font-size:1.5cqw}
+.p-row{display:grid;grid-template-columns:47.7% 17.5% 17.3% 17.5%;border-bottom:max(1px,.13cqw) solid #858585}
+.p-row>div{padding:1.35cqw .8cqw;min-height:4.3cqw;display:flex;align-items:center;min-width:0;overflow-wrap:anywhere}
+.p-row>div+div{border-left:max(1px,.13cqw) solid #858585}
+.p-row .r{justify-content:flex-end;text-align:right;font-variant-numeric:tabular-nums}
+.p-row .b{font-weight:700}
+.p-row.hd{background:#e4ecdb;border-top:max(1px,.13cqw) solid #858585;color:#444}
+.p-row.hd>div{min-height:4.3cqw}
+.p-row .n{font-variant-numeric:tabular-nums}
+.p-totals{margin-top:1.8cqw}
+.p-tl{display:flex;justify-content:space-between;gap:2cqw;background:#e4ecdb;padding:0 .8cqw;height:3.5cqw;align-items:center;font-size:1.4cqw;font-weight:700;font-variant-numeric:tabular-nums}
+.p-tl+.p-tl{border-top:max(1px,.13cqw) solid #b2bfa5}
+.p-tl.grand{background:none;border:0;height:auto;padding:1.5cqw .8cqw 0;font-size:1.95cqw}
+.p-foot{margin-top:auto;padding-top:5cqw}
+.p-sig{height:9cqw;display:flex;align-items:flex-end;margin-bottom:1.6cqw}
+.p-sig img{max-height:9cqw;max-width:26cqw;object-fit:contain;mix-blend-mode:multiply;display:block}
+.p-sig .line{width:26cqw;border-top:max(1px,.13cqw) solid #666;padding-top:.5cqw;font-size:1.15cqw;color:#666}
+.p-terms h4{margin:0;padding-bottom:1.1cqw;font-size:1.4cqw;font-weight:700;border-bottom:max(1px,.13cqw) solid #858585;color:#111}
+.p-terms p{margin:1.3cqw 0 0;font-size:1.4cqw;line-height:2cqw;color:#222;white-space:pre-wrap;overflow-wrap:anywhere}
+
+@media print{
+  :root{padding:0 !important}
+  html,body{background:#fff !important}
+  .app{padding:0;max-width:none}
+  .topbar,.editor,.stage-head,.no-print{display:none !important}
+  .layout{display:block}
+  .stage{max-width:none;margin:0}
+  .paper{box-shadow:none;width:100%}
+  @page{size:A4;margin:0}
+}
+@media (prefers-reduced-motion:no-preference){button{transition:border-color .12s,color .12s}}
+</style>
+</head>
+<body>
+
+
+<div class="app">
+  <header class="topbar">
+    <div>
+      <h1>Invoice Builder</h1>
+      <p>Fill in the form. The page on the right updates as you type, and your draft is kept in this browser.</p>
+    </div>
+    <div class="actions">
+      <button id="btnNew" type="button" class="primary">Start new</button>
+      <button id="btnReset" type="button">Reset to example</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="editor">
+      <section class="card">
+        <h2>Document</h2>
+        <div class="grid2">
+          <label class="field"><span>Title</span><input id="f-title" type="text" list="titles" data-k="title"></label>
+          <label class="field"><span>Currency</span>
+            <select id="f-cur" data-k="currency"><option>₹</option><option>$</option><option>€</option><option>£</option></select></label>
+          <label class="field"><span>Number</span><input id="f-number" type="text" data-k="number"></label>
+          <label class="field"><span>Order no. (optional)</span><input id="f-order" type="text" data-k="order"></label>
+          <label class="field"><span>Date</span><input id="f-date" type="date" data-k="date"></label>
+        </div>
+        <datalist id="titles"><option value="Receipt"><option value="Invoice"><option value="Tax Invoice"><option value="Quotation"></datalist>
+      </section>
+
+      <section class="card">
+        <h2>Logo</h2>
+        <div class="upload">
+          <input id="logoFile" type="file" accept="image/*">
+          <label for="logoFile" class="btn" id="logoBtn">Upload logo</label>
+          <img id="logoThumb" class="thumb" alt="Logo preview" hidden>
+          <button id="logoRemove" type="button" class="quiet" hidden>Remove</button>
+        </div>
+        <p class="note">PNG with a transparent background looks best.</p>
+      </section>
+
+      <section class="card">
+        <h2>Issuer (you)</h2>
+        <label class="field"><span>Name</span><input id="f-in" type="text" data-k="issuer.name"></label>
+        <label class="field"><span>Address</span><textarea id="f-ia" rows="2" data-k="issuer.address"></textarea></label>
+        <div class="grid2">
+          <label class="field"><span>Email</span><input id="f-ie" type="text" data-k="issuer.email"></label>
+          <label class="field"><span>Phone</span><input id="f-ip" type="text" data-k="issuer.phone"></label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Recipient (customer)</h2>
+        <label class="field"><span>Name</span><input id="f-rn" type="text" data-k="recipient.name"></label>
+        <label class="field"><span>Address</span><textarea id="f-ra" rows="2" data-k="recipient.address"></textarea></label>
+        <div class="grid2">
+          <label class="field"><span>Email</span><input id="f-re" type="text" data-k="recipient.email"></label>
+          <label class="field"><span>Phone</span><input id="f-rp" type="text" data-k="recipient.phone"></label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Items</h2>
+        <div class="list items">
+          <div class="listhead"><span>Description</span><span>Qty</span><span>Unit price</span><span></span></div>
+          <div id="itemsList" class="list"></div>
+        </div>
+        <button id="addItem" type="button" class="addrow">Add item</button>
+      </section>
+
+      <section class="card">
+        <h2>Taxes</h2>
+        <label class="switch"><input id="taxOn" type="checkbox"><span>Add tax (GST) to this document</span></label>
+        <div id="taxBox" class="taxbox" hidden>
+          <div class="list taxes">
+            <div class="listhead"><span>Name</span><span>Rate %</span><span></span></div>
+            <div id="taxList" class="list"></div>
+          </div>
+          <button id="addTax" type="button" class="addrow">Add tax</button>
+          <p class="note">Each tax is calculated on the subtotal.</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Signature</h2>
+        <div class="upload">
+          <input id="sigFile" type="file" accept="image/*">
+          <label for="sigFile" class="btn">Upload signature</label>
+          <img id="sigThumb" class="thumb" alt="Signature preview" hidden>
+          <button id="sigRemove" type="button" class="quiet" hidden>Remove</button>
+        </div>
+        <p class="note">Leave this empty to print a blank signature line you can sign by hand. A photo of a signature on white paper works; the white background is hidden on the page.</p>
+      </section>
+
+      <section class="card">
+        <h2>Terms and conditions</h2>
+        <label class="field"><span>Text at the bottom of the page</span><textarea id="f-terms" rows="3" data-k="terms"></textarea></label>
+      </section>
+    </div>
+
+    <div class="stage">
+      <div class="stage-head"><h2>Preview</h2><span>To print or save as PDF, press Ctrl+P (Cmd+P on Mac)</span></div>
+      <div class="paper" id="paper" aria-label="Document preview"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEY = 'invoice-builder-draft-v1';
+
+  function today(){ return new Date().toISOString().slice(0,10); }
+  function sample(){
+    return {
+      title:'Receipt', number:'10001', order:'4', date:today(), currency:'₹',
+      logo:'', signature:'',
+      issuer:{name:'Your Company Name', address:'Street, City, PIN code', email:'you@example.com', phone:'+91 00000 00000'},
+      recipient:{name:'Customer Name', address:'Street, City, PIN code', email:'customer@example.com', phone:'+91 00000 00000'},
+      items:[{d:'Vase',q:'2',p:'100'},{d:'Candle',q:'3',p:'1000'}],
+      taxOn:false,
+      taxes:[{label:'GST',rate:'10'}],
+      terms:'Goods once sold will not be taken back. Please keep this receipt for your records.'
+    };
+  }
+  function load(){
+    try{ var raw = localStorage.getItem(KEY); if(raw){ var o = JSON.parse(raw); if(o && o.items) return o; } }catch(e){}
+    return null;
+  }
+  var S = load() || sample();
+  var saveTimer;
+  function save(){
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }, 400);
+  }
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function num(v){ var n = parseFloat(v); return isFinite(n) ? n : 0; }
+  function money(n){
+    var loc = S.currency === '₹' ? 'en-IN' : 'en-US';
+    return S.currency + ' ' + n.toLocaleString(loc,{minimumFractionDigits:2,maximumFractionDigits:2});
+  }
+  function fmtDate(d){
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d||''); return m ? m[3]+'/'+m[2]+'/'+m[1] : (d||'');
+  }
+  function get(path){ return path.split('.').reduce(function(o,k){return o==null?o:o[k];},S); }
+  function set(path,v){ var ks = path.split('.'), last = ks.pop(); ks.reduce(function(o,k){return o[k];},S)[last] = v; }
+
+  function partyLines(p){
+    var lines = [p.name].concat(String(p.address||'').split('\n'), [p.email, p.phone]);
+    return lines.map(function(l){return String(l||'').trim();}).filter(Boolean);
+  }
+
+  function renderPaper(){
+    var sub = 0;
+    var rows = S.items.filter(function(it){ return it.d || num(it.q) || num(it.p); }).map(function(it){
+      var t = num(it.q) * num(it.p); sub += t;
+      return '<div class="p-row"><div>'+esc(it.d)+'</div><div class="n">'+esc(it.q)+'</div><div class="r">'+money(num(it.p))+'</div><div class="r b">'+money(t)+'</div></div>';
+    }).join('');
+    var total = sub;
+    var taxRows = (S.taxOn ? S.taxes : []).filter(function(t){ return t.label || num(t.rate); }).map(function(t){
+      var amt = sub * num(t.rate) / 100; total += amt;
+      return '<div class="p-tl"><span>'+esc(t.label)+' '+num(t.rate).toFixed(2)+'%</span><span>'+money(amt)+'</span></div>';
+    }).join('');
+
+    var title = S.title || 'Receipt';
+    var logo = S.logo
+      ? '<img src="'+S.logo+'" alt="Logo">'
+      : '<label class="ph no-print" for="logoFile">Click to add your logo</label>';
+    var sig = S.signature
+      ? '<img src="'+S.signature+'" alt="Signature">'
+      : '<div class="line">Authorised signature</div>';
+    var meta = '<div><dt>'+esc(title)+' No.</dt><dd>'+esc(S.number)+'</dd></div>'
+      + (S.order ? '<div><dt>Order No.</dt><dd>'+esc(S.order)+'</dd></div>' : '')
+      + '<div><dt>Date</dt><dd>'+esc(fmtDate(S.date))+'</dd></div>';
+    var terms = String(S.terms||'').trim()
+      ? '<div class="p-terms"><h4>Terms and Conditions</h4><p>'+esc(S.terms)+'</p></div>' : '';
+
+    document.getElementById('paper').innerHTML =
+      '<div class="sheet">'
+      + '<div class="p-head"><div class="p-logo">'+logo+'</div><div class="p-meta"><h2>'+esc(title)+'</h2><dl>'+meta+'</dl></div></div>'
+      + '<div class="p-parties">'
+      +   '<div><h3>ISSUER</h3><p>'+partyLines(S.issuer).map(esc).join('<br>')+'</p></div>'
+      +   '<div><h3>RECIPIENT</h3><p>'+partyLines(S.recipient).map(esc).join('<br>')+'</p></div>'
+      + '</div>'
+      + '<div class="p-table">'
+      +   '<div class="p-row hd"><div>Description</div><div>Quantity</div><div class="r">Unit Price</div><div class="r">Total</div></div>'
+      +   rows
+      + '</div>'
+      + '<div class="p-totals">'
+      +   '<div class="p-tl"><span>Subtotal</span><span>'+money(sub)+'</span></div>'
+      +   taxRows
+      +   '<div class="p-tl grand"><span>Total</span><span>'+money(total)+'</span></div>'
+      + '</div>'
+      + '<div class="p-foot"><div class="p-sig">'+sig+'</div>'+terms+'</div>'
+      + '</div>';
+  }
+
+  function update(){ renderPaper(); save(); }
+
+  /* simple text fields */
+  var bound = Array.prototype.slice.call(document.querySelectorAll('[data-k]'));
+  bound.forEach(function(el){
+    el.addEventListener('input', function(){ set(el.dataset.k, el.value); update(); });
+    el.addEventListener('change', function(){ set(el.dataset.k, el.value); update(); });
+  });
+
+  /* items */
+  var itemsList = document.getElementById('itemsList');
+  function renderItems(){
+    itemsList.innerHTML = S.items.map(function(it,i){
+      return '<div class="lrow" data-i="'+i+'">'
+        + '<input class="d" type="text" data-f="d" placeholder="Description" aria-label="Description" value="'+esc(it.d)+'">'
+        + '<input class="q" type="number" inputmode="decimal" min="0" step="any" data-f="q" placeholder="Qty" aria-label="Quantity" value="'+esc(it.q)+'">'
+        + '<input class="p" type="number" inputmode="decimal" min="0" step="any" data-f="p" placeholder="Price" aria-label="Unit price" value="'+esc(it.p)+'">'
+        + '<button type="button" data-rm="1" aria-label="Remove item">✕</button></div>';
+    }).join('');
+  }
+  itemsList.addEventListener('input', function(e){
+    var row = e.target.closest('[data-i]'); if(!row || !e.target.dataset.f) return;
+    S.items[+row.dataset.i][e.target.dataset.f] = e.target.value; update();
+  });
+  itemsList.addEventListener('click', function(e){
+    var b = e.target.closest('[data-rm]'); if(!b) return;
+    S.items.splice(+b.closest('[data-i]').dataset.i,1); renderItems(); update();
+  });
+  document.getElementById('addItem').addEventListener('click', function(){
+    S.items.push({d:'',q:'1',p:''}); renderItems(); update();
+    var last = itemsList.querySelector('.lrow:last-child .d'); if(last) last.focus();
+  });
+
+  /* taxes */
+  var taxList = document.getElementById('taxList');
+  function renderTaxes(){
+    taxList.innerHTML = S.taxes.map(function(t,i){
+      return '<div class="lrow" data-i="'+i+'">'
+        + '<input type="text" data-f="label" placeholder="e.g. GST" aria-label="Tax name" value="'+esc(t.label)+'">'
+        + '<input type="number" inputmode="decimal" min="0" step="any" data-f="rate" placeholder="%" aria-label="Tax rate percent" value="'+esc(t.rate)+'">'
+        + '<button type="button" data-rm="1" aria-label="Remove tax">✕</button></div>';
+    }).join('');
+  }
+  taxList.addEventListener('input', function(e){
+    var row = e.target.closest('[data-i]'); if(!row || !e.target.dataset.f) return;
+    S.taxes[+row.dataset.i][e.target.dataset.f] = e.target.value; update();
+  });
+  taxList.addEventListener('click', function(e){
+    var b = e.target.closest('[data-rm]'); if(!b) return;
+    S.taxes.splice(+b.closest('[data-i]').dataset.i,1); renderTaxes(); update();
+  });
+  document.getElementById('addTax').addEventListener('click', function(){
+    S.taxes.push({label:'',rate:''}); renderTaxes(); update();
+    var last = taxList.querySelector('.lrow:last-child input'); if(last) last.focus();
+  });
+
+  /* tax on/off */
+  var taxOn = document.getElementById('taxOn'), taxBox = document.getElementById('taxBox');
+  function syncTax(){ taxOn.checked = !!S.taxOn; taxBox.hidden = !S.taxOn; }
+  taxOn.addEventListener('change', function(){
+    S.taxOn = taxOn.checked;
+    if(S.taxOn && !S.taxes.length){ S.taxes.push({label:'GST',rate:''}); renderTaxes(); }
+    syncTax(); update();
+  });
+
+  /* image uploads (logo + signature) */
+  function readImage(file, maxW, done){
+    if(!file) return;
+    var fr = new FileReader();
+    fr.onload = function(){
+      var img = new Image();
+      img.onload = function(){
+        var s = Math.min(1, maxW / img.width);
+        var c = document.createElement('canvas');
+        c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        var type = file.type === 'image/jpeg' ? 'image/jpeg' : 'image/png';
+        done(c.toDataURL(type, 0.9));
+      };
+      img.onerror = function(){ done(fr.result); };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  }
+  function wireUpload(fileId, key, thumbId, removeId, maxW){
+    var inp = document.getElementById(fileId), th = document.getElementById(thumbId), rm = document.getElementById(removeId);
+    inp.addEventListener('change', function(){
+      readImage(inp.files[0], maxW, function(url){ S[key] = url; inp.value=''; sync(); update(); });
+    });
+    rm.addEventListener('click', function(){ S[key] = ''; sync(); update(); });
+    function sync(){
+      th.hidden = rm.hidden = !S[key];
+      if(S[key]) th.src = S[key];
+    }
+    return sync;
+  }
+  var syncLogo = wireUpload('logoFile','logo','logoThumb','logoRemove',700);
+  var syncSig  = wireUpload('sigFile','signature','sigThumb','sigRemove',700);
+
+  /* apply whole state to the form */
+  function applyState(){
+    bound.forEach(function(el){ var v = get(el.dataset.k); el.value = v==null ? '' : v; });
+    renderItems(); renderTaxes(); syncTax(); syncLogo(); syncSig(); renderPaper();
+  }
+
+  /* two-step buttons (confirm() is unavailable in artifacts) */
+  function armed(btn, fn){
+    var t;
+    btn.addEventListener('click', function(){
+      if(btn.dataset.armed){
+        clearTimeout(t); delete btn.dataset.armed; btn.textContent = btn.dataset.label; fn();
+      }else{
+        btn.dataset.armed = '1'; btn.dataset.label = btn.textContent; btn.textContent = 'Click again to confirm';
+        t = setTimeout(function(){ delete btn.dataset.armed; btn.textContent = btn.dataset.label; }, 3000);
+      }
+    });
+  }
+  armed(document.getElementById('btnNew'), function(){
+    var n = /^\d+$/.test(String(S.number)) ? String(+S.number + 1) : S.number;
+    S.number = n; S.order = ''; S.date = today();
+    S.recipient = {name:'',address:'',email:'',phone:''};
+    S.items = [{d:'',q:'1',p:''}];
+    applyState(); save();
+  });
+  armed(document.getElementById('btnReset'), function(){
+    S = sample(); applyState(); save();
+  });
+
+  applyState();
+})();
+</script>
+
+</body>
+</html>
